@@ -1,33 +1,189 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// Media Asset Management System Database Schema
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
 
 generator client {
   provider = "prisma-client-js"
 }
 
-datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+enum Role {
+  ADMIN
+  EDITOR
 }
 
-// Example models - uncomment and modify as needed
+enum Orientation {
+  LANDSCAPE
+  PORTRAIT
+  SQUARE
+}
 
-// model User {
-//   id    String @id @default(cuid())
-//   email String @unique
-//   name  String?
-//   posts Post[]
-//   createdAt DateTime @default(now())
-//   updatedAt DateTime @updatedAt
-// }
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  role          Role      @default(EDITOR)
+  password      String    // bcrypt hashed
+  emailVerified DateTime?
+  image         String?
 
-// model Post {
-//   id        String   @id @default(cuid())
-//   title     String
-//   content   String?
-//   published Boolean  @default(false)
-//   author    User     @relation(fields: [authorId], references: [id])
-//   authorId  String
-//   createdAt DateTime @default(now())
-//   updatedAt DateTime @updatedAt
-// }
+  // Relations
+  uploadedImages Image[]   @relation("UploadedBy")
+  comments       Comment[]
+  folders        Folder[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Image {
+  id           String @id @default(cuid())
+  filename     String
+  originalName String
+  filepath     String // /uploads/2024/10/uuid-filename.jpg
+  thumbnailPath String? // /uploads/2024/10/thumbs/uuid-filename.jpg
+  fileSize     Int // bytes
+  mimeType     String
+
+  // Dimensions
+  width       Int
+  height      Int
+  aspectRatio Float // calculated: width/height
+  orientation Orientation
+
+  // AI Classifications (from Claude)
+  aiSubjects        String[] // ["horses", "ranch", "sunset", "action"]
+  aiStyle           String? // "documentary", "editorial", "dramatic", "minimalist"
+  aiMood            String? // "energetic", "peaceful", "dramatic", "intimate"
+  aiQualityScore    Float? // 0-10 technical quality
+  aiComposition     String? // "rule-of-thirds", "centered", "symmetrical"
+  aiLighting        String? // "golden-hour", "harsh", "soft", "dramatic"
+  aiColors          String[] // dominant colors
+  aiDescription     String? @db.Text // full description from Claude
+  aiProcessingStatus String @default("pending") // pending, processing, complete, failed
+  aiProcessedAt     DateTime?
+
+  // Platform Suitability (AI-graded 0-10)
+  instagramScore    Float?
+  facebookScore     Float?
+  linkedinScore     Float?
+  websiteHeroScore  Float?
+  websiteThumbnailScore Float?
+  printScore        Float?
+
+  // Manual Metadata
+  userTags           String[] // user-added tags
+  category           String? // general category
+  rating             Int? // 1-5 stars (user rating)
+  isMarkedForPurchase Boolean @default(false)
+  isPinned           Boolean @default(false)
+
+  // Relationships
+  uploadedById String
+  uploadedBy   User   @relation("UploadedBy", fields: [uploadedById], references: [id], onDelete: Cascade)
+  folderId     String?
+  folder       Folder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  comments     Comment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([uploadedById])
+  @@index([folderId])
+  @@index([aiProcessingStatus])
+  @@index([isPinned])
+  @@index([isMarkedForPurchase])
+  @@index([rating])
+  @@index([createdAt])
+  @@map("images")
+}
+
+model Folder {
+  id          String @id @default(cuid())
+  name        String
+  description String? @db.Text
+  color       String? // hex color for UI
+
+  // Nested folders
+  parentId   String?
+  parent     Folder?  @relation("SubfolderRelation", fields: [parentId], references: [id], onDelete: Cascade)
+  subfolders Folder[] @relation("SubfolderRelation")
+
+  // Relations
+  images      Image[]
+  createdById String
+  createdBy   User    @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdById])
+  @@index([parentId])
+  @@map("folders")
+}
+
+model Comment {
+  id      String @id @default(cuid())
+  content String @db.Text
+
+  // Relations
+  imageId String
+  image   Image  @relation(fields: [imageId], references: [id], onDelete: Cascade)
+  userId  String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([imageId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("comments")
+}
+
+// NextAuth.js models
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
