@@ -1,8 +1,36 @@
-# MediaPlatformv1
+# Media Platform v1
 
-A modern Next.js application built with Queen Claude foundation.
+AI-powered media management platform with Claude vision analysis, NextAuth authentication, and batch upload capabilities.
 
-## 🚀 What's Included (31 Packages)
+## Features
+
+### 🤖 AI-Powered Analysis
+- **Claude Vision API** integration for comprehensive image analysis
+- Automatic classification: subjects, style, mood, lighting, composition, colors
+- Platform suitability scores (Instagram, Facebook, LinkedIn, Website, Print)
+- Background job queue for processing
+
+### 🔐 Authentication & Authorization
+- NextAuth v5 with email/password credentials
+- Role-based access (ADMIN/EDITOR)
+- Protected routes and API endpoints
+- Session management with JWT
+
+### 📤 Batch Upload
+- Drag-and-drop interface
+- Upload up to 50 images at once (25MB each)
+- Automatic thumbnail generation (400x400)
+- Metadata extraction (dimensions, orientation, aspect ratio)
+
+### 🖼️ Media Management
+- Gallery grid view with AI classifications
+- Detailed image modal with full analysis
+- Search and filter capabilities (coming soon)
+- Folder organization and commenting system (coming soon)
+
+---
+
+## 🚀 Tech Stack (31 Packages)
 
 ### Core Stack
 - ⚡ **Next.js 15** with App Router
@@ -31,61 +59,61 @@ A modern Next.js application built with Queen Claude foundation.
 - 🪝 **Husky** - Git hooks
 - 🔍 **Next SEO** - Meta tag management
 
-## 📋 Essential Files
+## 📋 Documentation
 
-- **📦 CAPABILITIES.md** - Complete list of 31 pre-installed packages and usage examples
-- **🎨 DESIGN_SYSTEM_TEMPLATE.md** - Ready for `/1-setup-design` command to create your design system
+- **📦 CAPABILITIES.md** - Complete list of 31 pre-installed packages
+- **📖 SETUP.md** - Detailed installation and configuration guide
+- **📝 PLATFORM_SPEC.md** - Complete project documentation and architecture
 - **⚙️ .env.example** - Environment variables template
 
-## 🎨 Design System Setup
-
-**Before building UI, set up your design system:**
-
-```bash
-# In Claude Code, run these commands in sequence:
-/1-setup-design     # Choose colors, fonts, spacing
-/2-setup-foundation # Configure Tailwind + create templates
-```
-
-This will:
-1. Let you choose from 8 proven color themes (Apple, Stripe, GitHub, etc.)
-2. Select from 5 battle-tested font pairings (Inter, Montserrat, etc.)  
-3. Configure spacing and styling preferences
-4. Generate `DESIGN_SYSTEM.md` + update `tailwind.config.js` + create `COMPONENT_TEMPLATES.md`
-
-**Why this matters:** Agents get working, customized component patterns instead of hardcoded values.
-
-## Getting Started
+## Quick Start
 
 ### Prerequisites
+- Node.js 20+
+- PostgreSQL database
+- Anthropic API key
 
-- Node.js 18.0 or later
-- npm 8.0 or later
+### Installation
 
-### Development
-
+1. **Clone and install**
 ```bash
-# Install dependencies
+git clone https://github.com/willem4130/MediaPlatformv1.git
+cd MediaPlatformv1
 npm install
-
-# Set up environment variables
-cp .env.example .env.local
-# Edit .env.local with your values
-
-# Set up database (SQLite ready out of the box)
-npm run db:push
-
-# Run development server
-npm run dev
-
-# Build for production
-npm run build
-
-# Start production server
-npm run start
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. **Configure environment**
+```bash
+cp .env.example .env.local
+```
+
+Edit `.env.local`:
+```env
+DATABASE_URL="postgresql://username:password@localhost:5432/media_platform"
+NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_SECRET="your-secret-key"  # Generate with: openssl rand -base64 32
+ANTHROPIC_API_KEY="your-anthropic-api-key"
+```
+
+3. **Setup database**
+```bash
+npm run db:generate
+npm run db:push
+```
+
+4. **Create admin user**
+```bash
+npx tsx scripts/create-admin.ts
+```
+
+5. **Start development server**
+```bash
+npm run dev
+```
+
+Visit `http://localhost:3000` and login with your admin credentials!
+
+See **SETUP.md** for detailed instructions.
 
 ## Available Scripts
 
@@ -118,22 +146,29 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 ## Project Structure
 
 ```
-├── CAPABILITIES.md         # 31 pre-installed packages reference
-├── DESIGN_SYSTEM_TEMPLATE.md # Template for /1-setup-design command
-├── .env.example           # Environment variables template
-├── prisma/schema.prisma   # Database schema
-├── src/
-│   ├── app/                # Next.js App Router
-│   │   ├── api/auth/       # NextAuth API routes
-│   │   ├── layout.tsx      # Root layout
-│   │   ├── page.tsx        # Homepage
-│   │   └── __tests__/      # Page tests
-│   ├── components/         # Reusable components + providers
-│   ├── lib/               # Auth, Prisma, utilities
-│   ├── stores/            # Zustand state management  
-│   └── types/             # TypeScript definitions
-├── styles/globals.css     # Minimal Tailwind foundation
-└── ...config files
+src/
+├── app/
+│   ├── api/
+│   │   ├── auth/[...nextauth]/     # NextAuth API routes
+│   │   ├── images/                  # Image listing and analysis
+│   │   └── upload/                  # File upload endpoint
+│   ├── auth/                        # Login/error pages
+│   ├── dashboard/                   # Protected dashboard
+│   │   ├── page.tsx                 # Gallery grid
+│   │   └── upload/                  # Upload interface
+│   └── layout.tsx                   # Root layout
+├── components/
+│   ├── DashboardNav.tsx             # Navigation
+│   ├── ImageDetailModal.tsx         # AI analysis modal
+│   └── Providers.tsx                # Context providers
+├── lib/
+│   ├── auth.ts                      # NextAuth config
+│   ├── prisma.ts                    # Database client
+│   ├── claude-ai.ts                 # Claude API integration
+│   ├── image-processing.ts          # Thumbnail generation
+│   └── job-queue.ts                 # Background jobs
+└── types/
+    └── next-auth.d.ts               # Type extensions
 ```
 
 ## Quality Gates
@@ -169,24 +204,65 @@ Analyze your bundle size to optimize performance:
 npm run analyze
 ```
 
-## 🚀 Quick Start Checklist
+## API Endpoints
 
-1. ✅ **Install dependencies:** `npm install`
-2. ✅ **Set up environment:** `cp .env.example .env.local` 
-3. ✅ **Initialize database:** `npm run db:push`
-4. 🎨 **Create design system:** Run `/1-setup-design` in Claude Code
-5. 📦 **Check capabilities:** Read `CAPABILITIES.md` for available packages
-6. 🛠️ **Start building:** `npm run dev`
+### Authentication
+- `POST /api/auth/signin` - Login with credentials
+- `POST /api/auth/signout` - Logout
 
-## 🤖 For Autonomous Development
+### Images
+- `GET /api/images` - List all images with metadata
+- `POST /api/upload` - Upload images (multipart/form-data)
+- `POST /api/images/[id]/analyze` - Trigger AI analysis
 
-**Key Files for AI Agents:**
-- **CAPABILITIES.md** - Prevents unnecessary package installations
-- **DESIGN_SYSTEM.md** - Ensures consistent UI design (created by `/1-setup-design`)
-- **Examples:** Check `src/components/` and `src/lib/` for usage patterns
+## Claude AI Analysis
+
+The platform uses **Claude 3.5 Sonnet** for comprehensive image analysis:
+
+### Classification Categories
+- **Subjects**: Primary and secondary subjects
+- **Style**: Photography style (portrait, landscape, abstract, etc.)
+- **Mood**: Emotional tone (joyful, serious, peaceful, etc.)
+- **Lighting**: Lighting conditions (natural, studio, dramatic, etc.)
+- **Composition**: Visual arrangement (rule of thirds, symmetry, etc.)
+- **Colors**: Dominant color palette
+
+### Platform Scores (0-10)
+- **Instagram**: Visual appeal, engagement potential
+- **Facebook**: Shareability, broad appeal
+- **LinkedIn**: Professional tone, business context
+- **Website Hero**: Above-fold suitability
+- **Website Thumbnail**: Small-format effectiveness
+- **Print**: Physical reproduction quality
+
+## Production Deployment
+
+### Hosting Recommendations
+- **Platform**: Vercel, Railway, or AWS
+- **Database**: Supabase, Neon, or RDS
+- **File Storage**: AWS S3 or Cloudflare R2
+
+### Production Checklist
+- [ ] Setup PostgreSQL on production host
+- [ ] Configure environment variables
+- [ ] Setup file storage (move from local to S3/R2)
+- [ ] Configure domain and SSL
+- [ ] Create admin user
+- [ ] Test upload and AI processing
+- [ ] Monitor API usage and costs
 
 ## Built with Queen Claude
 
-This foundation includes 31 essential packages covering authentication, database, forms, UI components, state management, and more - everything needed to build modern web applications without constantly installing dependencies.
+This platform was built using Queen Claude's autonomous development system with 31 pre-installed packages and best practices for rapid full-stack development.
 
-**Next steps:** Run `/1-setup-design` to create your design system, then start building!
+**Key Features:**
+- 🤖 **Autonomous AI agents** for parallel feature development
+- 📦 **31 battle-tested packages** pre-installed
+- 🎨 **Design system** with Tailwind CSS
+- 🔐 **Authentication** with NextAuth v5
+- 🗄️ **Database** with Prisma ORM
+- 🧪 **Testing** with Vitest
+
+---
+
+Built with ❤️ using Next.js, Prisma, NextAuth, Claude AI, and Tailwind CSS.
