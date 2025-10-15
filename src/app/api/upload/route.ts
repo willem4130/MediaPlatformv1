@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import formidable from "formidable";
 import fs from "fs/promises";
 import path from "path";
 import { nanoid } from "nanoid";
-import { extractImageMetadata, createThumbnail } from "@/lib/image-processing";
 import { jobQueue } from "@/lib/job-queue";
 
 export const runtime = "nodejs";
@@ -13,27 +11,6 @@ export const dynamic = "force-dynamic";
 
 const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads");
 const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE || "26214400"); // 25MB
-const MAX_FILES = parseInt(process.env.MAX_FILES_PER_BATCH || "50");
-
-async function parseFormData(req: NextRequest): Promise<{ fields: formidable.Fields; files: formidable.Files }> {
-  const form = formidable({
-    uploadDir: UPLOAD_DIR,
-    keepExtensions: true,
-    maxFileSize: MAX_FILE_SIZE,
-    maxFiles: MAX_FILES,
-    filter: ({ mimetype }) => {
-      return mimetype?.startsWith("image/") || false;
-    },
-  });
-
-  return new Promise((resolve, reject) => {
-    const nodeReq = req as any;
-    form.parse(nodeReq, (err, fields, files) => {
-      if (err) reject(err);
-      else resolve({ fields, files });
-    });
-  });
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -43,93 +20,105 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { files } = await parseFormData(request);
-    const uploadedFiles = Array.isArray(files.files) ? files.files : [files.files];
-    const validFiles = uploadedFiles.filter(Boolean);
+    const formData = await request.formData();
+    const files = formData.getAll("files") as File[];
 
-    if (validFiles.length === 0) {
-      return NextResponse.json({ error: "No valid files uploaded" }, { status: 400 });
+    if (files.length === 0) {
+      return NextResponse.json({ error: "No files uploaded" }, { status: 400 });
     }
 
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, "0");
-    const uploadSubDir = path.join(UPLOAD_DIR, "originals", String(year), month);
-    const thumbnailSubDir = path.join(UPLOAD_DIR, "thumbnails", String(year), month);
+    const uploadSubDir = path.join(
+      UPLOAD_DIR,
+      "originals",
+      String(year),
+      month
+    );
 
     await fs.mkdir(uploadSubDir, { recursive: true });
-    await fs.mkdir(thumbnailSubDir, { recursive: true });
 
-    const results = [];
+    const imageRecords = [];
 
-    for (const file of validFiles) {
+    for (const file of files) {
       try {
-        if (!file) continue;
+        if (!file.type.startsWith("image/")) {
+          console.warn(`Skipping non-image file: ${file.name}`);
+          continue;
+        }
+
+        if (file.size > MAX_FILE_SIZE) {
+          console.warn(`File too large: ${file.name} (${file.size} bytes)`);
+          continue;
+        }
 
         const fileId = nanoid();
-        const ext = path.extname(file.originalFilename || "");
+        const ext = path.extname(file.name);
         const filename = `${fileId}${ext}`;
         const finalPath = path.join(uploadSubDir, filename);
-        const thumbnailPath = path.join(thumbnailSubDir, filename);
+        const webPath = `uploads/originals/${year}/${month}/${filename}`;
 
-        await fs.rename(file.filepath, finalPath);
+        const arrayBuffer = await file.arrayBuffer();
+        await fs.writeFile(finalPath, Buffer.from(arrayBuffer));
 
-        const webPath = `/uploads/originals/${year}/${month}/${filename}`;
-        const thumbWebPath = `/uploads/thumbnails/${year}/${month}/${filename}`;
-
-        const metadata = await extractImageMetadata(
-          finalPath,
-          file.size || 0,
-          file.mimetype || "image/jpeg"
-        );
-
-        await createThumbnail(finalPath, thumbnailPath);
-
-        const image = await prisma.image.create({
-          data: {
-            filename,
-            originalName: file.originalFilename || filename,
-            filepath: webPath,
-            thumbnailPath: thumbWebPath,
-            fileSize: metadata.fileSize,
-            mimeType: metadata.mimeType,
-            width: metadata.width,
-            height: metadata.height,
-            aspectRatio: metadata.aspectRatio,
-            orientation: metadata.orientation,
-            uploadedById: (session.user as any).id,
-            aiSubjects: [],
-            aiColors: [],
-            userTags: [],
-          },
+        imageRecords.push({
+          filename,
+          originalName: file.name,
+          filepath: webPath,
+          thumbnailPath: null,
+          fileSize: file.size,
+          mimeType: file.type,
+          width: 0,
+          height: 0,
+          aspectRatio: 1.0,
+          orientation: "SQUARE" as const,
+          uploadedById: (session.user as any).id,
+          aiSubjects: [],
+          aiColors: [],
+          userTags: [],
+          aiProcessingStatus: "pending",
         });
-
-        jobQueue.addJob(image.id);
-
-        results.push({
-          id: image.id,
-          filename: image.filename,
-          filepath: image.filepath,
-          thumbnailPath: image.thumbnailPath,
-          status: "success",
-          aiQueued: true,
-        });
-
-        console.log(`Image uploaded successfully: ${image.id}, AI analysis queued`);
       } catch (error) {
-        console.error("Error processing file:", error);
-        results.push({
-          filename: file?.originalFilename || "unknown",
-          status: "error",
-          error: "Failed to process file",
-        });
+        console.error(`Error processing file ${file.name}:`, error);
       }
     }
 
+    if (imageRecords.length === 0) {
+      return NextResponse.json(
+        { error: "No valid images to upload" },
+        { status: 400 }
+      );
+    }
+
+    const images = await prisma.image.createMany({
+      data: imageRecords,
+    });
+
+    const createdImages = await prisma.image.findMany({
+      where: {
+        filename: { in: imageRecords.map((r) => r.filename) },
+      },
+      select: { id: true, filename: true, filepath: true },
+    });
+
+    for (const image of createdImages) {
+      jobQueue.addJob(image.id, "metadata-and-thumbnail");
+      jobQueue.addJob(image.id, "ai-analysis");
+    }
+
+    console.log(`Uploaded ${images.count} images, queued for processing`);
+
     return NextResponse.json({
       success: true,
-      count: results.length,
-      results,
+      count: images.count,
+      results: createdImages.map((img) => ({
+        id: img.id,
+        filename: img.filename,
+        filepath: img.filepath,
+        status: "success",
+        processing: "queued",
+      })),
     });
   } catch (error) {
     console.error("Upload error:", error);

@@ -14,21 +14,48 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
-        fileName: true,
+        filename: true,
+        originalName: true,
+        filepath: true,
+        thumbnailPath: true,
         fileSize: true,
         mimeType: true,
         width: true,
         height: true,
-        url: true,
-        thumbnailUrl: true,
         aspectRatio: true,
         orientation: true,
-        classification: true,
+        aiSubjects: true,
+        aiStyle: true,
+        aiMood: true,
+        aiQualityScore: true,
+        aiDescription: true,
+        aiProcessingStatus: true,
         createdAt: true,
       },
     });
 
-    return NextResponse.json(images);
+    const transformedImages = images.map((image) => ({
+      id: image.id,
+      fileName: image.filename,
+      fileSize: image.fileSize,
+      mimeType: image.mimeType,
+      width: image.width,
+      height: image.height,
+      url: `/${image.filepath}`,
+      thumbnailUrl: image.thumbnailPath ? `/${image.thumbnailPath}` : null,
+      aspectRatio: image.aspectRatio.toString(),
+      orientation: image.orientation,
+      classification: {
+        primary_subject: image.aiSubjects?.[0] || null,
+        style: image.aiStyle,
+        mood: image.aiMood,
+        quality_score: image.aiQualityScore,
+        description: image.aiDescription,
+      },
+      createdAt: image.createdAt.toISOString(),
+    }));
+
+    return NextResponse.json(transformedImages);
   } catch (error) {
     console.error("Error fetching images:", error);
     return NextResponse.json(

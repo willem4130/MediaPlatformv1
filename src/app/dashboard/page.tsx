@@ -81,11 +81,13 @@ export default function DashboardPage() {
             />
           </svg>
           <h3 className="mt-2 text-sm font-medium text-gray-900">No images</h3>
-          <p className="mt-1 text-sm text-gray-500">Get started by uploading some images.</p>
+          <p className="mt-1 text-sm text-gray-500">
+            Get started by uploading some images.
+          </p>
           <div className="mt-6">
             <Link
               href="/dashboard/upload"
-              className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary hover:bg-primary/90"
+              className="inline-flex items-center rounded-md border border-transparent bg-primary px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary/90"
             >
               Upload Images
             </Link>
@@ -97,30 +99,31 @@ export default function DashboardPage() {
 
   return (
     <div className="px-4 py-6 sm:px-0">
-      <div className="mb-6 flex justify-between items-center">
+      <div className="mb-6 flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-900">Gallery</h2>
         <Link
           href="/dashboard/upload"
-          className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary hover:bg-primary/90"
+          className="inline-flex items-center rounded-md border border-transparent bg-primary px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary/90"
         >
           Upload Images
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
         {images.map((image) => (
           <div
             key={image.id}
             onClick={() => setSelectedImage(image)}
-            className="group relative bg-white rounded-lg shadow overflow-hidden hover:shadow-lg transition-shadow cursor-pointer"
+            className="group relative cursor-pointer overflow-hidden rounded-lg bg-white shadow transition-shadow hover:shadow-lg"
           >
-            <div className="aspect-square relative bg-gray-100">
+            <div className="relative aspect-square bg-gray-100">
               {image.thumbnailUrl ? (
                 <Image
                   src={image.thumbnailUrl}
                   alt={image.fileName}
                   fill
                   className="object-cover"
+                  unoptimized
                 />
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center">
@@ -141,19 +144,21 @@ export default function DashboardPage() {
               )}
             </div>
             <div className="p-3">
-              <p className="text-sm font-medium text-gray-900 truncate">{image.fileName}</p>
+              <p className="truncate text-sm font-medium text-gray-900">
+                {image.fileName}
+              </p>
               <p className="text-xs text-gray-500">
                 {image.width} × {image.height}
               </p>
               {image.classification && (
                 <div className="mt-2 flex flex-wrap gap-1">
                   {image.classification.primary_subject && (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                    <span className="inline-flex items-center rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
                       {image.classification.primary_subject}
                     </span>
                   )}
                   {image.classification.style && (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                    <span className="inline-flex items-center rounded bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800">
                       {image.classification.style}
                     </span>
                   )}
