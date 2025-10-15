@@ -10,7 +10,11 @@ export interface ImageMetadata {
   mimeType: string;
 }
 
-export async function extractImageMetadata(filepath: string, fileSize: number, mimeType: string): Promise<ImageMetadata> {
+export async function extractImageMetadata(
+  filepath: string,
+  fileSize: number,
+  mimeType: string
+): Promise<ImageMetadata> {
   const metadata = await sharp(filepath).metadata();
 
   const width = metadata.width || 0;
@@ -28,12 +32,24 @@ export async function extractImageMetadata(filepath: string, fileSize: number, m
   };
 }
 
-export async function createThumbnail(inputPath: string, outputPath: string, maxWidth: number = 400): Promise<void> {
-  await sharp(inputPath)
-    .resize(maxWidth, null, {
-      withoutEnlargement: true,
-      fit: "inside",
-    })
-    .jpeg({ quality: 80 })
-    .toFile(outputPath);
+export async function createThumbnail(
+  inputPath: string,
+  outputPath: string,
+  maxWidth: number = 400
+): Promise<void> {
+  const sharpInstance = sharp(inputPath);
+  const metadata = await sharpInstance.metadata();
+
+  const resized = sharpInstance.resize(maxWidth, null, {
+    withoutEnlargement: true,
+    fit: "inside",
+  });
+
+  if (metadata.format === "png") {
+    await resized.png({ quality: 80 }).toFile(outputPath);
+  } else if (metadata.format === "webp") {
+    await resized.webp({ quality: 80 }).toFile(outputPath);
+  } else {
+    await resized.jpeg({ quality: 80 }).toFile(outputPath);
+  }
 }

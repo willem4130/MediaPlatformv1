@@ -1,14 +1,19 @@
 # Media Platform Setup Guide
 
+🔒 **PRIVATE PLATFORM** - Authentication required for all access. No public pages.
+
 ## Quick Start
 
 ### 1. Install Dependencies
+
 ```bash
 npm install
 ```
 
 ### 2. Setup Environment Variables
+
 Create `.env.local` file:
+
 ```bash
 # Database (PostgreSQL)
 DATABASE_URL="postgresql://username:password@localhost:5432/media_platform"
@@ -26,6 +31,7 @@ MAX_FILES_PER_BATCH=50
 ```
 
 ### 3. Setup Database
+
 ```bash
 # Generate Prisma client
 npm run db:generate
@@ -35,12 +41,15 @@ npm run db:push
 ```
 
 ### 4. Create Admin User
+
 ```bash
 npx tsx scripts/create-admin.ts
 ```
+
 Follow prompts to create your admin account.
 
 ### 5. Start Development Server
+
 ```bash
 npm run dev
 ```
@@ -52,6 +61,7 @@ Visit `http://localhost:3000` and login with your admin credentials!
 ## What You Have
 
 ### Backend ✅
+
 - **NextAuth v5** - Email/password authentication with ADMIN/EDITOR roles
 - **Prisma ORM** - PostgreSQL database with User, Image, Folder, Comment models
 - **File Upload API** - Batch uploads (up to 50 images, 25MB each)
@@ -59,12 +69,18 @@ Visit `http://localhost:3000` and login with your admin credentials!
 - **Background Jobs** - Automatic AI processing after upload
 
 ### Frontend ✅
+
 - **Login Page** - `/auth/login` - Email/password form
 - **Gallery Grid** - `/dashboard` - View all images with AI classifications
 - **Upload Interface** - `/dashboard/upload` - Drag-drop batch uploader
 - **Image Detail Modal** - Click any image to see full AI analysis
 
 ### Features
+
+- **100% Private** - No public access, login required for everything
+- **Protected Files** - All uploaded images require authentication
+- **Security Headers** - XSS, clickjacking, and MIME-sniffing protection
+- **No Indexing** - robots.txt and meta tags prevent search engines
 - Automatic thumbnail generation (400x400)
 - Image metadata extraction (dimensions, orientation, aspect ratio)
 - AI classification: subjects, style, mood, lighting, composition, colors
@@ -74,6 +90,7 @@ Visit `http://localhost:3000` and login with your admin credentials!
 ---
 
 ## Project Structure
+
 ```
 src/
 ├── app/
@@ -111,6 +128,7 @@ src/
 ## Next Steps
 
 ### Test the Platform
+
 1. Login as admin
 2. Upload 2-3 test images
 3. Watch AI processing complete
@@ -118,11 +136,13 @@ src/
 5. Check platform suitability scores
 
 ### Environment Notes
+
 - **PostgreSQL**: Use local instance or hosted (Supabase, Railway, Neon)
 - **Claude API**: Get key from https://console.anthropic.com
 - **File Storage**: Images stored in `public/uploads/` (use S3/Cloudflare R2 for production)
 
 ### Production Checklist
+
 - [ ] Setup PostgreSQL on production host
 - [ ] Configure environment variables
 - [ ] Run database migrations
@@ -136,6 +156,7 @@ src/
 ## Troubleshooting
 
 ### Database Connection
+
 ```bash
 # Test connection
 npx prisma studio
@@ -145,14 +166,43 @@ npx prisma migrate reset
 ```
 
 ### AI Processing
+
 - Check `ANTHROPIC_API_KEY` is set
 - Images must be in `public/uploads/`
 - Check console logs for processing status
 
 ### Authentication
+
 - Generate new `NEXTAUTH_SECRET` if needed
 - Clear cookies if login fails
 - Check session in browser DevTools
+
+---
+
+## 🔒 Privacy & Security
+
+This platform is **completely private** and secure:
+
+### Authentication Protection
+
+- ✅ **Middleware** blocks ALL routes except login page
+- ✅ **Uploaded files** require authentication (no direct access to /uploads/)
+- ✅ **API routes** verify session on every request
+- ✅ **Auto-redirect** to login if not authenticated
+
+### Security Headers
+
+- `X-Frame-Options: DENY` - Prevents clickjacking
+- `X-Content-Type-Options: nosniff` - Prevents MIME sniffing
+- `X-XSS-Protection: 1; mode=block` - XSS protection
+- `Referrer-Policy: strict-origin-when-cross-origin` - Protects referrer info
+- `Permissions-Policy` - Blocks camera/microphone/geolocation
+
+### Search Engine Protection
+
+- **robots.txt** - Blocks all search engines
+- **Meta robots tags** - noindex, nofollow, nocache
+- No sitemap provided
 
 ---
 

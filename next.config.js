@@ -1,18 +1,18 @@
-import withBundleAnalyzer from "@next/bundle-analyzer"
-import path from "path"
-import { fileURLToPath } from "url"
+import withBundleAnalyzer from "@next/bundle-analyzer";
+import path from "path";
+import { fileURLToPath } from "url";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const bundleAnalyzer = withBundleAnalyzer({
   enabled: process.env.ANALYZE === "true",
-})
+});
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Fix for git worktrees - prevents workspace detection issues
   outputFileTracingRoot: path.join(__dirname, "./"),
-  
+
   typedRoutes: true,
   eslint: {
     dirs: ["src"],
@@ -22,6 +22,21 @@ const nextConfig = {
     // your project has TypeScript errors.
     ignoreBuildErrors: false,
   },
-}
+  images: {
+    remotePatterns: [
+      {
+        protocol: "http",
+        hostname: "localhost",
+        port: "3003",
+        pathname: "/api/images/**",
+      },
+    ],
+    localPatterns: [
+      {
+        pathname: "/api/images/**",
+      },
+    ],
+  },
+};
 
-export default bundleAnalyzer(nextConfig)
+export default bundleAnalyzer(nextConfig);

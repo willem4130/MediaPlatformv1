@@ -4,7 +4,7 @@ import { processImageAI } from "@/lib/claude-ai";
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
@@ -13,7 +13,7 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const imageId = params.id;
+    const { id: imageId } = await params;
 
     processImageAI(imageId).catch((error) => {
       console.error(`Background AI processing failed for ${imageId}:`, error);
