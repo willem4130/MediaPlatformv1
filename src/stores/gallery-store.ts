@@ -101,7 +101,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
   // Initial state
   viewMode: "grid",
   sortBy: "date-desc",
-  gridColumns: 4,
+  gridColumns: 6,
   filters: defaultFilters,
   activeFilterCount: 0,
   selectedImages: new Set(),
@@ -135,10 +135,13 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
   addFilterValue: (key, value) =>
     set((state) => {
       const currentValues = state.filters[key];
-      if (Array.isArray(currentValues) && !currentValues.includes(value)) {
+      if (
+        Array.isArray(currentValues) &&
+        !currentValues.includes(value as never)
+      ) {
         const newFilters = {
           ...state.filters,
-          [key]: [...currentValues, value],
+          [key]: [...currentValues, value as never],
         };
         return {
           filters: newFilters,
@@ -154,7 +157,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
       if (Array.isArray(currentValues)) {
         const newFilters = {
           ...state.filters,
-          [key]: currentValues.filter((v) => v !== value),
+          [key]: currentValues.filter((v) => v !== value) as never,
         };
         return {
           filters: newFilters,

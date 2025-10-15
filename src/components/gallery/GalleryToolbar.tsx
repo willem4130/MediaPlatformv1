@@ -130,22 +130,20 @@ export function GalleryToolbar() {
             )}
           </div>
 
-          {/* Grid columns (only show in grid mode) */}
+          {/* Grid tile size slider (only show in grid mode) */}
           {viewMode === "grid" && (
-            <div className="hidden items-center gap-1 rounded-lg border border-gray-300 px-2 py-2 md:flex">
-              {[2, 3, 4, 5, 6].map((cols) => (
-                <button
-                  key={cols}
-                  onClick={() => setGridColumns(cols)}
-                  className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
-                    gridColumns === cols
-                      ? "bg-primary text-white"
-                      : "text-gray-600 hover:bg-gray-100"
-                  }`}
-                >
-                  {cols}
-                </button>
-              ))}
+            <div className="hidden items-center gap-3 rounded-lg border border-gray-300 px-4 py-2 md:flex">
+              <label className="whitespace-nowrap text-xs font-medium text-gray-600">
+                Tiles: {gridColumns}
+              </label>
+              <input
+                type="range"
+                min="2"
+                max="12"
+                value={gridColumns}
+                onChange={(e) => setGridColumns(Number(e.target.value))}
+                className="h-2 w-32 cursor-pointer appearance-none rounded-lg bg-gray-200 accent-primary [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-primary [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary"
+              />
             </div>
           )}
 
