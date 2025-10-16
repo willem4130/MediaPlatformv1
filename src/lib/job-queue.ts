@@ -14,8 +14,10 @@ interface Job {
 
 class SimpleJobQueue {
   private queue: Job[] = [];
+  private completedJobs: Job[] = [];
   private processing = false;
-  private concurrency = 1;
+  private concurrency = 3;
+  private activeJobs = 0;
 
   addJob(
     imageId: string,
@@ -35,37 +37,62 @@ class SimpleJobQueue {
   }
 
   private async processQueue() {
-    if (this.processing || this.queue.length === 0) {
+    if (this.processing) {
       return;
     }
 
     this.processing = true;
 
-    while (this.queue.length > 0) {
-      const job = this.queue.shift();
-      if (!job) break;
+    while (this.queue.length > 0 || this.activeJobs > 0) {
+      while (this.activeJobs < this.concurrency && this.queue.length > 0) {
+        const job = this.queue.shift();
+        if (!job) break;
 
-      job.status = "processing";
-
-      try {
-        if (job.type === "metadata-and-thumbnail") {
-          await this.processMetadataAndThumbnail(job.imageId);
-        } else if (job.type === "ai-analysis") {
-          await processImageAI(job.imageId);
-        }
-
-        job.status = "complete";
-        job.processedAt = new Date();
-        console.log(`${job.type} job complete: ${job.imageId}`);
-      } catch (error) {
-        job.status = "failed";
-        job.error = error instanceof Error ? error.message : "Unknown error";
-        job.processedAt = new Date();
-        console.error(`${job.type} job failed: ${job.imageId}`, error);
+        this.activeJobs++;
+        this.processJob(job);
       }
+
+      if (this.queue.length === 0 && this.activeJobs === 0) {
+        break;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 100));
     }
 
     this.processing = false;
+  }
+
+  private async processJob(job: Job): Promise<void> {
+    job.status = "processing";
+
+    try {
+      console.log(`[JobQueue] Starting ${job.type} for image: ${job.imageId}`);
+
+      if (job.type === "metadata-and-thumbnail") {
+        await this.processMetadataAndThumbnail(job.imageId);
+      } else if (job.type === "ai-analysis") {
+        await processImageAI(job.imageId);
+      }
+
+      job.status = "complete";
+      job.processedAt = new Date();
+      this.completedJobs.push(job);
+      console.log(`[JobQueue] ✓ ${job.type} complete: ${job.imageId}`);
+    } catch (error) {
+      job.status = "failed";
+      job.error = error instanceof Error ? error.message : "Unknown error";
+      job.processedAt = new Date();
+      this.completedJobs.push(job);
+      console.error(`[JobQueue] ✗ ${job.type} FAILED for ${job.imageId}:`);
+      console.error(`[JobQueue]   Error: ${job.error}`);
+      if (error instanceof Error && error.stack) {
+        console.error(
+          `[JobQueue]   Stack: ${error.stack.split("\n").slice(0, 3).join("\n")}`
+        );
+      }
+    } finally {
+      this.activeJobs--;
+    }
   }
 
   private async processMetadataAndThumbnail(imageId: string): Promise<void> {
@@ -140,11 +167,41 @@ class SimpleJobQueue {
   }
 
   getQueueStatus() {
+    const processingJobs = this.activeJobs;
+    const pendingJobs = this.queue.filter((j) => j.status === "pending").length;
+    const completedJobs = this.completedJobs.filter(
+      (j) => j.status === "complete"
+    ).length;
+    const failedJobs = this.completedJobs.filter(
+      (j) => j.status === "failed"
+    ).length;
+
     return {
-      pending: this.queue.filter((j) => j.status === "pending").length,
-      processing: this.queue.filter((j) => j.status === "processing").length,
-      total: this.queue.length,
+      pending: pendingJobs,
+      processing: processingJobs,
+      completed: completedJobs,
+      failed: failedJobs,
+      total: pendingJobs + processingJobs,
+      isProcessing: this.processing,
     };
+  }
+
+  getJobsByImageIds(imageIds: string[]) {
+    const allJobs = [...this.queue, ...this.completedJobs];
+    return imageIds.map((imageId) => {
+      const job = allJobs.find((j) => j.imageId === imageId);
+      return {
+        imageId,
+        status: job?.status || "not-found",
+        error: job?.error,
+      };
+    });
+  }
+
+  clearCompletedJobs() {
+    this.completedJobs = this.completedJobs.filter(
+      (j) => Date.now() - j.processedAt!.getTime() < 300000
+    );
   }
 }
 

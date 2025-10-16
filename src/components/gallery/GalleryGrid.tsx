@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useGalleryStore } from "@/stores/gallery-store";
-import { Star, Check, Sparkles } from "lucide-react";
+import { Star, Check, Sparkles, Trash2 } from "lucide-react";
 
 interface ImageData {
   id: string;
@@ -62,12 +62,20 @@ export function GalleryGrid({ images, isLoading }: GalleryGridProps) {
 
   const gridRef = useRef<HTMLDivElement>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisProgress, setAnalysisProgress] = useState({
+    completed: 0,
+    total: 0,
+  });
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const handleBulkAnalyze = async () => {
     const imageIds = Array.from(selectedImages);
     if (imageIds.length === 0) return;
 
     setIsAnalyzing(true);
+    setAnalysisProgress({ completed: 0, total: imageIds.length });
+
     try {
       const response = await fetch("/api/images/analyze-batch", {
         method: "POST",
@@ -79,17 +87,72 @@ export function GalleryGrid({ images, isLoading }: GalleryGridProps) {
         throw new Error("Failed to queue AI analysis");
       }
 
-      alert(
-        `Queued ${imageIds.length} images for AI analysis. Check back in a few moments.`
-      );
+      let completed = 0;
+      const pollInterval = setInterval(async () => {
+        try {
+          const statusResponse = await fetch("/api/images/queue-status", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ imageIds }),
+          });
 
-      // Refresh the page after a short delay to show updated status
-      setTimeout(() => window.location.reload(), 2000);
+          if (statusResponse.ok) {
+            const { jobs } = await statusResponse.json();
+            completed = jobs.filter(
+              (j: { status: string }) =>
+                j.status === "complete" || j.status === "failed"
+            ).length;
+            setAnalysisProgress({ completed, total: imageIds.length });
+
+            if (completed === imageIds.length) {
+              clearInterval(pollInterval);
+              setIsAnalyzing(false);
+              setTimeout(() => window.location.reload(), 500);
+            }
+          }
+        } catch (error) {
+          console.error("Status poll error:", error);
+        }
+      }, 1000);
+
+      setTimeout(() => {
+        clearInterval(pollInterval);
+        setIsAnalyzing(false);
+        window.location.reload();
+      }, 60000);
     } catch (error) {
       console.error("Bulk analyze error:", error);
       alert("Failed to queue AI analysis. Please try again.");
-    } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    const imageIds = Array.from(selectedImages);
+    if (imageIds.length === 0) return;
+
+    setShowDeleteConfirm(false);
+    setIsDeleting(true);
+
+    try {
+      const response = await fetch("/api/images/delete-batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageIds }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to delete images");
+      }
+
+      const result = await response.json();
+      alert(`Successfully deleted ${result.details.dbRecordsDeleted} image(s)`);
+
+      window.location.reload();
+    } catch (error) {
+      console.error("Bulk delete error:", error);
+      alert("Failed to delete images. Please try again.");
+      setIsDeleting(false);
     }
   };
 
@@ -325,14 +388,68 @@ export function GalleryGrid({ images, isLoading }: GalleryGridProps) {
                 {selectedImages.size} image
                 {selectedImages.size !== 1 ? "s" : ""} selected
               </div>
-              <button
-                onClick={handleBulkAnalyze}
-                disabled={isAnalyzing}
-                className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Sparkles className="h-4 w-4" />
-                {isAnalyzing ? "Analyzing..." : "Analyze Selected"}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  disabled={isDeleting || isAnalyzing}
+                  className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  {isDeleting ? "Deleting..." : "Delete Selected"}
+                </button>
+                <button
+                  onClick={handleBulkAnalyze}
+                  disabled={isAnalyzing || isDeleting}
+                  className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  {isAnalyzing
+                    ? `Analyzing ${analysisProgress.completed}/${analysisProgress.total}...`
+                    : "Analyze Selected"}
+                </button>
+              </div>
+            </div>
+            {isAnalyzing && (
+              <div className="mt-2">
+                <div className="h-2 w-full overflow-hidden rounded-full bg-blue-200">
+                  <div
+                    className="h-full bg-blue-600 transition-all duration-300"
+                    style={{
+                      width: `${(analysisProgress.completed / analysisProgress.total) * 100}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="mx-4 max-w-md rounded-lg bg-white p-6 shadow-xl">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Delete {selectedImages.size} image
+                {selectedImages.size !== 1 ? "s" : ""}?
+              </h3>
+              <p className="mt-2 text-sm text-gray-600">
+                This action cannot be undone. The images and their thumbnails
+                will be permanently deleted from the server.
+              </p>
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleBulkDelete}
+                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           </div>
         )}
