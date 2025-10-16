@@ -40,7 +40,8 @@ export default function DashboardNav({
                   alt="The Care Ranch"
                   width={40}
                   height={40}
-                  className="h-10 w-auto"
+                  className="h-10"
+                  style={{ width: "auto" }}
                   priority
                 />
                 <h1 className="text-xl font-bold text-gray-900">
