@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useGalleryStore } from "@/stores/gallery-store";
-import { Star, Check } from "lucide-react";
+import { Star, Check, Sparkles } from "lucide-react";
 
 interface ImageData {
   id: string;
@@ -61,6 +61,37 @@ export function GalleryGrid({ images, isLoading }: GalleryGridProps) {
   } = useGalleryStore();
 
   const gridRef = useRef<HTMLDivElement>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  const handleBulkAnalyze = async () => {
+    const imageIds = Array.from(selectedImages);
+    if (imageIds.length === 0) return;
+
+    setIsAnalyzing(true);
+    try {
+      const response = await fetch("/api/images/analyze-batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageIds }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to queue AI analysis");
+      }
+
+      alert(
+        `Queued ${imageIds.length} images for AI analysis. Check back in a few moments.`
+      );
+
+      // Refresh the page after a short delay to show updated status
+      setTimeout(() => window.location.reload(), 2000);
+    } catch (error) {
+      console.error("Bulk analyze error:", error);
+      alert("Failed to queue AI analysis. Please try again.");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
 
   // Keyboard navigation
   useEffect(() => {
@@ -137,11 +168,12 @@ export function GalleryGrid({ images, isLoading }: GalleryGridProps) {
   }
 
   // Render image card component (used in all views)
-  const renderImageCard = (image: ImageData) => {
+  const renderImageCard = (image: ImageData, index: number) => {
     const isSelected = selectedImages.has(image.id);
     const shouldShowMetadata = gridColumns <= 8;
     const useFullImage = gridColumns <= 4;
     const imageUrl = useFullImage ? image.url : image.thumbnailUrl || image.url;
+    const isPriority = index < gridColumns;
 
     return (
       <div
@@ -162,6 +194,7 @@ export function GalleryGrid({ images, isLoading }: GalleryGridProps) {
               fill
               className="object-cover transition-transform group-hover:scale-105"
               unoptimized
+              priority={isPriority}
               sizes={`(max-width: 768px) 50vw, (max-width: 1200px) 33vw, ${100 / gridColumns}vw`}
             />
           ) : (
@@ -284,13 +317,33 @@ export function GalleryGrid({ images, isLoading }: GalleryGridProps) {
   if (viewMode === "grid") {
     return (
       <div ref={gridRef} className="px-4 py-6">
+        {/* Bulk Action Bar */}
+        {selectedImages.size > 0 && (
+          <div className="sticky top-0 z-10 mb-4 rounded-lg border border-blue-200 bg-blue-50 p-4 shadow-md">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-medium text-blue-900">
+                {selectedImages.size} image
+                {selectedImages.size !== 1 ? "s" : ""} selected
+              </div>
+              <button
+                onClick={handleBulkAnalyze}
+                disabled={isAnalyzing}
+                className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Sparkles className="h-4 w-4" />
+                {isAnalyzing ? "Analyzing..." : "Analyze Selected"}
+              </button>
+            </div>
+          </div>
+        )}
+
         <div
           className="grid gap-4"
           style={{
             gridTemplateColumns: `repeat(${gridColumns}, minmax(0, 1fr))`,
           }}
         >
-          {images.map(renderImageCard)}
+          {images.map((image, index) => renderImageCard(image, index))}
         </div>
       </div>
     );

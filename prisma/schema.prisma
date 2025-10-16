@@ -75,6 +75,14 @@ model Image {
   websiteThumbnailScore Float?
   printScore        Float?
 
+  // Enhanced Use-Case Recommendations
+  aiBestUseCases       String[] // Specific recommended use cases
+  aiNotRecommendedFor  String[] // Use cases to avoid
+  aiCropSquare         Float? // 0-10 viability for 1:1 crop
+  aiCropPortrait       Float? // 0-10 viability for 4:5 or 9:16 crop
+  aiCropLandscape      Float? // 0-10 viability for 16:9 crop
+  aiTechnicalNotes     String? @db.Text // Technical considerations
+
   // Manual Metadata
   userTags           String[] // user-added tags
   category           String? // general category

@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
 
     for (const image of createdImages) {
       jobQueue.addJob(image.id, "metadata-and-thumbnail");
-      jobQueue.addJob(image.id, "ai-analysis");
+      // AI analysis is now manual - use the "Analyze Selected" button in the gallery
     }
 
     console.log(`Uploaded ${images.count} images, queued for processing`);

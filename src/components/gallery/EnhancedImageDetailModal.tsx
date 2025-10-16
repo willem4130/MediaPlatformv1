@@ -17,7 +17,14 @@ import {
   Eye,
   Maximize,
   Minimize,
+  Target,
+  CheckCircle2,
+  XCircle,
+  Crop,
+  AlertCircle,
+  RefreshCw,
 } from "lucide-react";
+import { formatAspectRatioFromDecimal } from "@/lib/utils";
 
 interface ImageData {
   id: string;
@@ -42,6 +49,14 @@ interface ImageData {
     quality_score: number | null;
     description: string | null;
     processing_status: string;
+    best_use_cases?: string[];
+    not_recommended_for?: string[];
+    crop_recommendations?: {
+      square: number | null;
+      portrait: number | null;
+      landscape: number | null;
+    };
+    technical_notes?: string | null;
   };
   platformScores: {
     instagram: number | null;
@@ -66,7 +81,7 @@ interface EnhancedImageDetailModalProps {
   onNavigate: (direction: "prev" | "next") => void;
 }
 
-type TabType = "ai" | "metadata" | "actions";
+type TabType = "ai" | "use-cases" | "metadata" | "actions";
 
 export function EnhancedImageDetailModal({
   image,
@@ -76,12 +91,36 @@ export function EnhancedImageDetailModal({
 }: EnhancedImageDetailModalProps) {
   const [activeTab, setActiveTab] = useState<TabType>("ai");
   const [userRating, setUserRating] = useState(image.rating || 0);
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
 
   const currentIndex = images.findIndex((img) => img.id === image.id);
   const hasPrev = currentIndex > 0;
   const hasNext = currentIndex < images.length - 1;
 
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const handleRetryAI = async () => {
+    setIsRetrying(true);
+    setRetryError(null);
+
+    try {
+      const response = await fetch(`/api/images/${image.id}/analyze`, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to queue AI analysis");
+      }
+
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    } catch (error) {
+      setRetryError(error instanceof Error ? error.message : "Retry failed");
+      setIsRetrying(false);
+    }
+  };
 
   // Keyboard navigation (ESC, Arrow keys, F for fullscreen)
   useEffect(() => {
@@ -196,29 +235,40 @@ export function EnhancedImageDetailModal({
             <div className="flex border-b border-gray-200 bg-gray-50">
               <button
                 onClick={() => setActiveTab("ai")}
-                className={`flex flex-1 items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${
+                className={`flex flex-1 items-center justify-center gap-1 px-3 py-3 text-xs font-medium transition-colors ${
                   activeTab === "ai"
                     ? "border-b-2 border-primary bg-white text-primary"
                     : "text-gray-600 hover:text-gray-900"
                 }`}
               >
                 <Eye className="h-4 w-4" />
-                AI Analysis
+                AI
+              </button>
+              <button
+                onClick={() => setActiveTab("use-cases")}
+                className={`flex flex-1 items-center justify-center gap-1 px-3 py-3 text-xs font-medium transition-colors ${
+                  activeTab === "use-cases"
+                    ? "border-b-2 border-primary bg-white text-primary"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                <Target className="h-4 w-4" />
+                Uses
               </button>
               <button
                 onClick={() => setActiveTab("metadata")}
-                className={`flex flex-1 items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${
+                className={`flex flex-1 items-center justify-center gap-1 px-3 py-3 text-xs font-medium transition-colors ${
                   activeTab === "metadata"
                     ? "border-b-2 border-primary bg-white text-primary"
                     : "text-gray-600 hover:text-gray-900"
                 }`}
               >
                 <Info className="h-4 w-4" />
-                Details
+                Info
               </button>
               <button
                 onClick={() => setActiveTab("actions")}
-                className={`flex flex-1 items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${
+                className={`flex flex-1 items-center justify-center gap-1 px-3 py-3 text-xs font-medium transition-colors ${
                   activeTab === "actions"
                     ? "border-b-2 border-primary bg-white text-primary"
                     : "text-gray-600 hover:text-gray-900"
@@ -233,6 +283,73 @@ export function EnhancedImageDetailModal({
             <div className="flex-1 overflow-y-auto p-4">
               {activeTab === "ai" && (
                 <div className="space-y-4">
+                  {/* Processing Status Messages */}
+                  {image.classification.processing_status === "pending" && (
+                    <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+                        <div>
+                          <h3 className="text-sm font-semibold text-blue-900">
+                            AI Analysis Pending
+                          </h3>
+                          <p className="mt-1 text-sm text-blue-800">
+                            This image is queued for analysis. Refresh the page
+                            in a few moments to see results.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {image.classification.processing_status === "processing" && (
+                    <div className="rounded-lg border border-purple-200 bg-purple-50 p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="h-5 w-5 animate-spin rounded-full border-2 border-purple-600 border-t-transparent" />
+                        <div>
+                          <h3 className="text-sm font-semibold text-purple-900">
+                            Analyzing with Claude AI
+                          </h3>
+                          <p className="mt-1 text-sm text-purple-800">
+                            AI is currently analyzing this image. This usually
+                            takes 5-10 seconds.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {image.classification.processing_status === "failed" && (
+                    <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+                      <div className="flex items-start gap-3">
+                        <AlertCircle className="h-5 w-5 flex-shrink-0 text-red-600" />
+                        <div className="flex-1">
+                          <h3 className="text-sm font-semibold text-red-900">
+                            AI Analysis Failed
+                          </h3>
+                          <p className="mt-1 text-sm text-red-800">
+                            The AI analysis could not be completed. This might
+                            be due to API configuration or image format issues.
+                          </p>
+                          {retryError && (
+                            <p className="mt-2 text-xs text-red-700">
+                              Error: {retryError}
+                            </p>
+                          )}
+                          <button
+                            onClick={handleRetryAI}
+                            disabled={isRetrying}
+                            className="mt-3 flex items-center gap-2 rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+                          >
+                            <RefreshCw
+                              className={`h-4 w-4 ${isRetrying ? "animate-spin" : ""}`}
+                            />
+                            {isRetrying ? "Retrying..." : "Retry Analysis"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Description */}
                   {image.classification.description && (
                     <div>
@@ -358,6 +475,184 @@ export function EnhancedImageDetailModal({
                 </div>
               )}
 
+              {activeTab === "use-cases" && (
+                <div className="space-y-4">
+                  {/* Best Use Cases */}
+                  {image.classification.best_use_cases &&
+                    image.classification.best_use_cases.length > 0 && (
+                      <div>
+                        <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900">
+                          <CheckCircle2 className="h-5 w-5 text-green-600" />
+                          Perfect For
+                        </h3>
+                        <div className="space-y-2">
+                          {image.classification.best_use_cases.map(
+                            (useCase, idx) => (
+                              <div
+                                key={idx}
+                                className="flex items-start gap-2 rounded-lg border border-green-200 bg-green-50 p-3"
+                              >
+                                <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-green-600" />
+                                <span className="text-sm text-green-900">
+                                  {useCase}
+                                </span>
+                              </div>
+                            )
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                  {/* Not Recommended For */}
+                  {image.classification.not_recommended_for &&
+                    image.classification.not_recommended_for.length > 0 && (
+                      <div>
+                        <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900">
+                          <XCircle className="h-5 w-5 text-red-600" />
+                          Avoid For
+                        </h3>
+                        <div className="space-y-2">
+                          {image.classification.not_recommended_for.map(
+                            (useCase, idx) => (
+                              <div
+                                key={idx}
+                                className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3"
+                              >
+                                <XCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-600" />
+                                <span className="text-sm text-red-900">
+                                  {useCase}
+                                </span>
+                              </div>
+                            )
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                  {/* Crop Recommendations */}
+                  {image.classification.crop_recommendations && (
+                    <div>
+                      <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900">
+                        <Crop className="h-5 w-5" />
+                        Crop Viability
+                      </h3>
+                      <div className="space-y-3">
+                        {image.classification.crop_recommendations.square !==
+                          null && (
+                          <div>
+                            <div className="mb-1 flex items-center justify-between">
+                              <span className="text-sm text-gray-600">
+                                Square (1:1) - Instagram Feed
+                              </span>
+                              <span className="text-sm font-medium text-gray-900">
+                                {image.classification.crop_recommendations.square.toFixed(
+                                  1
+                                )}
+                                /10
+                              </span>
+                            </div>
+                            <div className="h-2 w-full rounded-full bg-gray-200">
+                              <div
+                                className={`h-2 rounded-full transition-all ${
+                                  image.classification.crop_recommendations
+                                    .square >= 8
+                                    ? "bg-green-500"
+                                    : image.classification.crop_recommendations
+                                          .square >= 6
+                                      ? "bg-yellow-500"
+                                      : "bg-red-500"
+                                }`}
+                                style={{
+                                  width: `${image.classification.crop_recommendations.square * 10}%`,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {image.classification.crop_recommendations.portrait !==
+                          null && (
+                          <div>
+                            <div className="mb-1 flex items-center justify-between">
+                              <span className="text-sm text-gray-600">
+                                Portrait (4:5, 9:16) - Stories
+                              </span>
+                              <span className="text-sm font-medium text-gray-900">
+                                {image.classification.crop_recommendations.portrait.toFixed(
+                                  1
+                                )}
+                                /10
+                              </span>
+                            </div>
+                            <div className="h-2 w-full rounded-full bg-gray-200">
+                              <div
+                                className={`h-2 rounded-full transition-all ${
+                                  image.classification.crop_recommendations
+                                    .portrait >= 8
+                                    ? "bg-green-500"
+                                    : image.classification.crop_recommendations
+                                          .portrait >= 6
+                                      ? "bg-yellow-500"
+                                      : "bg-red-500"
+                                }`}
+                                style={{
+                                  width: `${image.classification.crop_recommendations.portrait * 10}%`,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {image.classification.crop_recommendations.landscape !==
+                          null && (
+                          <div>
+                            <div className="mb-1 flex items-center justify-between">
+                              <span className="text-sm text-gray-600">
+                                Landscape (16:9) - Website Hero
+                              </span>
+                              <span className="text-sm font-medium text-gray-900">
+                                {image.classification.crop_recommendations.landscape.toFixed(
+                                  1
+                                )}
+                                /10
+                              </span>
+                            </div>
+                            <div className="h-2 w-full rounded-full bg-gray-200">
+                              <div
+                                className={`h-2 rounded-full transition-all ${
+                                  image.classification.crop_recommendations
+                                    .landscape >= 8
+                                    ? "bg-green-500"
+                                    : image.classification.crop_recommendations
+                                          .landscape >= 6
+                                      ? "bg-yellow-500"
+                                      : "bg-red-500"
+                                }`}
+                                style={{
+                                  width: `${image.classification.crop_recommendations.landscape * 10}%`,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Technical Notes */}
+                  {image.classification.technical_notes && (
+                    <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                      <h3 className="mb-2 text-sm font-semibold text-blue-900">
+                        Technical Notes
+                      </h3>
+                      <p className="text-sm text-blue-800">
+                        {image.classification.technical_notes}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {activeTab === "metadata" && (
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4 text-sm">
@@ -382,7 +677,9 @@ export function EnhancedImageDetailModal({
                     <div>
                       <p className="text-gray-500">Aspect Ratio</p>
                       <p className="font-medium text-gray-900">
-                        {image.aspectRatio}
+                        {formatAspectRatioFromDecimal(
+                          parseFloat(image.aspectRatio)
+                        )}
                       </p>
                     </div>
                     <div>
